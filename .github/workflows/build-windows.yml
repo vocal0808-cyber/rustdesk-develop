@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  RUST_VERSION: "1.75"
+  RUST_VERSION: "1.82"
   FLUTTER_VERSION: "3.24.5"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
 
@@ -40,11 +40,20 @@ jobs:
           echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
         shell: pwsh
 
-      - name: Generate flutter-rust-bridge
+      - name: Install flutter_rust_bridge_codegen
         run: |
-          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked
+        shell: pwsh
+
+      - name: Flutter pub get
+        run: |
+          cd flutter
           flutter pub get
-          flutter_rust_bridge_codegen --rust-input src/flutter_ffi.rs --dart-output flutter/lib/generated_bridge.dart
+        shell: pwsh
+
+      - name: Generate bridge
+        run: |
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart
         shell: pwsh
 
       - name: Build Rust
