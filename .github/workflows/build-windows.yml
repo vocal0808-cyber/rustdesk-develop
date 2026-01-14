@@ -1,0 +1,65 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+
+env:
+  RUST_VERSION: "1.75"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+
+      - name: Install vcpkg
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+          cd C:\vcpkg
+          git checkout ${{ env.VCPKG_COMMIT_ID }}
+          .\bootstrap-vcpkg.bat
+          .\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+        shell: pwsh
+
+      - name: Set environment variables
+        run: |
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Generate flutter-rust-bridge
+        run: |
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid
+          flutter pub get
+          flutter_rust_bridge_codegen --rust-input src/flutter_ffi.rs --dart-output flutter/lib/generated_bridge.dart
+        shell: pwsh
+
+      - name: Build Rust
+        run: |
+          cargo build --features flutter --release
+        shell: pwsh
+
+      - name: Build Flutter Windows
+        run: |
+          cd flutter
+          flutter build windows --release
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-windows
+          path: flutter/build/windows/x64/runner/Release/
