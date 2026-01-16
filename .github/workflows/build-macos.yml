@@ -1,0 +1,353 @@
+name: Build RustDesk macOS
+
+on:
+    workflow_dispatch:
+
+jobs:
+    build-macos:
+        runs-on: macos-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  submodules: 'recursive'
+                  fetch-depth: 0
+
+            - name: Install Rust
+              uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  toolchain: stable
+                  components: rustfmt, clippy
+
+            - name: Install system dependencies
+              run: |
+                  brew install cmake pkg-config nasm yasm
+
+            - name: Install vcpkg
+              run: |
+                  cd /Users/runner
+                  git clone https://github.com/microsoft/vcpkg
+                  cd vcpkg
+                  ./bootstrap-vcpkg.sh
+                  echo "VCPKG_ROOT=/Users/runner/vcpkg" >> $GITHUB_ENV
+
+            - name: Cache vcpkg
+              uses: actions/cache@v3
+              with:
+                  path: |
+                      /Users/runner/vcpkg
+                      vcpkg_installed
+                  key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-vcpkg-
+
+            - name: Install vcpkg dependencies
+              run: |
+                  export VCPKG_ROOT=/Users/runner/vcpkg
+                  cd ${{ github.workspace }}
+                  $VCPKG_ROOT/vcpkg install --clean-after-build
+
+            - name: Detect architecture and set paths
+              id: arch
+              run: |
+                  ARCH=$(uname -m)
+                  echo "arch=$ARCH" >> $GITHUB_OUTPUT
+
+                  BREW_PREFIX=$(brew --prefix)
+                  echo "brew_prefix=$BREW_PREFIX" >> $GITHUB_OUTPUT
+
+                  if [ "$ARCH" = "arm64" ]; then
+                    VCPKG_TRIPLET="arm64-osx"
+                  else
+                    VCPKG_TRIPLET="x64-osx"
+                  fi
+                  echo "vcpkg_triplet=$VCPKG_TRIPLET" >> $GITHUB_OUTPUT
+
+                  VCPKG_INSTALLED="${{ github.workspace }}/vcpkg_installed/${VCPKG_TRIPLET}"
+                  echo "vcpkg_installed=$VCPKG_INSTALLED" >> $GITHUB_OUTPUT
+
+                  echo "=== Build environment ==="
+                  echo "Architecture: $ARCH"
+                  echo "Homebrew prefix: $BREW_PREFIX"
+                  echo "vcpkg triplet: $VCPKG_TRIPLET"
+                  echo "vcpkg installed: $VCPKG_INSTALLED"
+
+            - name: Verify vcpkg dependencies
+              run: |
+                  VCPKG_INSTALLED="${{ steps.arch.outputs.vcpkg_installed }}"
+                  echo "=== vcpkg installation check ==="
+                  if [ -d "$VCPKG_INSTALLED" ]; then
+                    echo "Found vcpkg installation at: $VCPKG_INSTALLED"
+                    echo ""
+                    echo "=== Installed libraries ==="
+                    ls -la "$VCPKG_INSTALLED/lib/" 2>/dev/null || echo "No lib directory"
+                    echo ""
+                    echo "=== Installed headers ==="
+                    ls -la "$VCPKG_INSTALLED/include/" 2>/dev/null || echo "No include directory"
+                    echo ""
+                    echo "=== pkg-config files ==="
+                    ls -la "$VCPKG_INSTALLED/lib/pkgconfig/" 2>/dev/null || echo "No pkgconfig directory"
+                  else
+                    echo "Warning: vcpkg installation not found at $VCPKG_INSTALLED"
+                    echo "Listing vcpkg_installed directory:"
+                    ls -la vcpkg_installed/ 2>/dev/null || echo "No vcpkg_installed directory"
+                  fi
+
+            - name: Set build environment
+              run: |
+                  BREW_PREFIX="${{ steps.arch.outputs.brew_prefix }}"
+                  VCPKG_INSTALLED="${{ steps.arch.outputs.vcpkg_installed }}"
+
+                  # Build environment variables
+                  echo "VCPKG_ROOT=/Users/runner/vcpkg" >> $GITHUB_ENV
+                  echo "MACOSX_DEPLOYMENT_TARGET=10.14" >> $GITHUB_ENV
+
+                  # pkg-config paths for both Homebrew and vcpkg
+                  PKG_CONFIG_PATH="${VCPKG_INSTALLED}/lib/pkgconfig"
+                  echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}" >> $GITHUB_ENV
+
+                  # Compiler and linker paths
+                  echo "CPATH=${VCPKG_INSTALLED}/include" >> $GITHUB_ENV
+                  echo "LIBRARY_PATH=${VCPKG_INSTALLED}/lib" >> $GITHUB_ENV
+                  echo "DYLD_LIBRARY_PATH=${VCPKG_INSTALLED}/lib" >> $GITHUB_ENV
+
+                  # Rust flags for linking
+                  RUSTFLAGS="-C link-arg=-Wl,-rpath,@executable_path -L ${VCPKG_INSTALLED}/lib"
+                  echo "RUSTFLAGS=${RUSTFLAGS}" >> $GITHUB_ENV
+
+                  # Feature flags
+                  echo "OPUS_STATIC=1" >> $GITHUB_ENV
+
+                  echo "=== Environment variables set ==="
+                  echo "PKG_CONFIG_PATH: ${PKG_CONFIG_PATH}"
+                  echo "RUSTFLAGS: ${RUSTFLAGS}"
+                  echo "CPATH: ${VCPKG_INSTALLED}/include"
+                  echo "LIBRARY_PATH: ${VCPKG_INSTALLED}/lib"
+
+            - name: Install Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: '3.24.3'
+                  channel: 'stable'
+
+            - name: Setup Flutter
+              run: |
+                  flutter config --enable-macos-desktop
+                  flutter --version
+                  flutter doctor -v
+
+            - name: Install Dart/Flutter dependencies
+              run: |
+                  cd flutter
+                  flutter pub get
+                  dart pub global activate ffigen 5.0.1
+
+            - name: Install flutter_rust_bridge_codegen
+              run: |
+                  cargo install flutter_rust_bridge_codegen --version 1.80.1 --force
+
+            - name: Generate Flutter Rust Bridge
+              run: |
+                  export PATH="$PATH:$HOME/.pub-cache/bin"
+                  flutter_rust_bridge_codegen \
+                    --rust-input ./src/flutter_ffi.rs \
+                    --dart-output ./flutter/lib/generated_bridge.dart \
+                    --c-output ./flutter/macos/Runner/bridge_generated.h
+
+            - name: Cache Cargo
+              uses: actions/cache@v3
+              with:
+                  path: |
+                      ~/.cargo/bin/
+                      ~/.cargo/registry/index/
+                      ~/.cargo/registry/cache/
+                      ~/.cargo/git/db/
+                      target/
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-
+
+            - name: Pre-build verification
+              run: |
+                  echo "=== Rust toolchain ==="
+                  rustc --version
+                  cargo --version
+                  echo ""
+                  echo "=== Python version ==="
+                  python3 --version
+                  echo ""
+                  echo "=== pkg-config test ==="
+                  pkg-config --list-all | grep -E "(opus|vpx|yuv|aom)" || echo "No matching packages found"
+                  echo ""
+                  echo "=== Environment check ==="
+                  echo "VCPKG_ROOT: $VCPKG_ROOT"
+                  echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+                  echo "RUSTFLAGS: $RUSTFLAGS"
+
+            - name: Build RustDesk
+              run: |
+                  python3 build.py --flutter --hwcodec --screencapturekit
+              env:
+                  VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
+                  PKG_CONFIG_PATH: ${{ env.PKG_CONFIG_PATH }}
+                  RUSTFLAGS: ${{ env.RUSTFLAGS }}
+                  CPATH: ${{ env.CPATH }}
+                  LIBRARY_PATH: ${{ env.LIBRARY_PATH }}
+                  DYLD_LIBRARY_PATH: ${{ env.DYLD_LIBRARY_PATH }}
+                  MACOSX_DEPLOYMENT_TARGET: ${{ env.MACOSX_DEPLOYMENT_TARGET }}
+                  OPUS_STATIC: ${{ env.OPUS_STATIC }}
+
+            - name: Bundle required libraries into .app
+              run: |
+                  FLUTTER_APP="flutter/build/macos/Build/Products/Release/RustDesk.app"
+
+                  if [ ! -d "$FLUTTER_APP" ]; then
+                    echo "Error: Flutter app bundle not found at $FLUTTER_APP"
+                    exit 1
+                  fi
+
+                  echo "=== Copying Rust dylib to app bundle ==="
+
+                  # Copy the main Rust library
+                  if [ -f "target/release/liblibrustdesk.dylib" ]; then
+                    cp target/release/liblibrustdesk.dylib "$FLUTTER_APP/Contents/Frameworks/"
+                    echo "Copied liblibrustdesk.dylib"
+                  else
+                    echo "Warning: liblibrustdesk.dylib not found"
+                  fi
+
+                  # Verify the frameworks directory
+                  echo ""
+                  echo "=== App bundle Frameworks directory ==="
+                  ls -lah "$FLUTTER_APP/Contents/Frameworks/" | head -20
+
+                  # Update dylib paths to use @executable_path
+                  echo ""
+                  echo "=== Updating library paths ==="
+                  install_name_tool -change @rpath/liblibrustdesk.dylib \
+                    @executable_path/../Frameworks/liblibrustdesk.dylib \
+                    "$FLUTTER_APP/Contents/MacOS/RustDesk" || echo "install_name_tool warning (may be OK)"
+
+                  # Verify final linking
+                  echo ""
+                  echo "=== Final library dependencies ==="
+                  otool -L "$FLUTTER_APP/Contents/MacOS/RustDesk" | grep -E "(librustdesk|@rpath)" || echo "No custom libraries found"
+
+            - name: Code sign app bundle (ad-hoc)
+              run: |
+                  FLUTTER_APP="flutter/build/macos/Build/Products/Release/RustDesk.app"
+
+                  echo "=== Applying ad-hoc code signature ==="
+
+                  # Sign all dylibs in Frameworks first
+                  find "$FLUTTER_APP/Contents/Frameworks" -name "*.dylib" -exec codesign --force --deep --sign - {} \; || true
+
+                  # Sign all framework bundles
+                  find "$FLUTTER_APP/Contents/Frameworks" -name "*.framework" -exec codesign --force --deep --sign - {} \; || true
+
+                  # Sign the main executable
+                  codesign --force --sign - "$FLUTTER_APP/Contents/MacOS/RustDesk"
+
+                  # Sign the service binary if it exists
+                  if [ -f "$FLUTTER_APP/Contents/MacOS/service" ]; then
+                    codesign --force --sign - "$FLUTTER_APP/Contents/MacOS/service"
+                  fi
+
+                  # Finally, sign the entire app bundle
+                  codesign --force --deep --sign - "$FLUTTER_APP"
+
+                  echo ""
+                  echo "=== Verifying code signature ==="
+                  codesign --verify --deep --verbose=2 "$FLUTTER_APP" || echo "Verification warning (may still work)"
+
+                  echo ""
+                  echo "=== Signature details ==="
+                  codesign -dvvv "$FLUTTER_APP" 2>&1 | head -20
+
+            - name: List build outputs
+              if: always()
+              run: |
+                  echo "=== Target directory structure ==="
+                  find target -type d -maxdepth 3 2>/dev/null || true
+                  echo ""
+                  echo "=== Build artifacts ==="
+                  find target/release -type f \( -name "rustdesk*" -o -name "*.app" -o -name "*.dmg" \) 2>/dev/null || echo "No artifacts found"
+                  echo ""
+                  if [ -d "target/release/bundle" ]; then
+                    echo "=== Bundle directory contents ==="
+                    ls -lRh target/release/bundle/
+                  fi
+                  echo ""
+                  if [ -d "flutter/build/macos" ]; then
+                    echo "=== Flutter build directory ==="
+                    ls -lRh flutter/build/macos/
+                  fi
+
+            - name: Create release directory
+              if: success()
+              run: |
+                  mkdir -p release_output
+
+                  # Flutter build creates .app in flutter/build/macos/Build/Products/Release/
+                  FLUTTER_APP_PATH="flutter/build/macos/Build/Products/Release/RustDesk.app"
+
+                  # Copy Flutter .app bundle if exists
+                  if [ -d "$FLUTTER_APP_PATH" ]; then
+                    echo "Found Flutter .app bundle at: $FLUTTER_APP_PATH"
+                    cp -r "$FLUTTER_APP_PATH" release_output/
+
+                    # Get app bundle size
+                    echo "App bundle size:"
+                    du -sh "$FLUTTER_APP_PATH"
+                  else
+                    echo "Warning: Flutter .app bundle not found at $FLUTTER_APP_PATH"
+                  fi
+
+                  # Also check cargo bundle location (legacy builds)
+                  if [ -d "target/release/bundle/osx" ]; then
+                    echo "Found legacy cargo bundle..."
+                    cp -r target/release/bundle/osx/* release_output/ 2>/dev/null || true
+                  fi
+
+                  # Copy DMG if exists
+                  if find . -name "*.dmg" -print -quit | grep -q .; then
+                    echo "Copying DMG files..."
+                    find . -name "*.dmg" -exec cp {} release_output/ \;
+                  fi
+
+                  # Copy standalone binary if exists
+                  if [ -f "target/release/rustdesk" ]; then
+                    echo "Copying standalone binary..."
+                    cp target/release/rustdesk release_output/
+                  fi
+
+                  echo ""
+                  echo "=== Release output contents ==="
+                  ls -lah release_output/
+
+                  # Show detailed contents if .app exists
+                  if [ -d "release_output/RustDesk.app" ]; then
+                    echo ""
+                    echo "=== RustDesk.app structure ==="
+                    ls -lah release_output/RustDesk.app/Contents/MacOS/
+                  fi
+
+                  # Create build info
+                  cat > release_output/build-info.txt << EOF
+                  Build Date: $(date)
+                  Commit: ${{ github.sha }}
+                  Branch: ${{ github.ref_name }}
+                  Architecture: ${{ steps.arch.outputs.arch }}
+                  Runner OS: ${{ runner.os }}
+                  Flutter Build: Yes
+                  EOF
+
+            - name: Upload artifacts
+              if: success()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: rustdesk-macos-${{ steps.arch.outputs.arch }}-${{ github.sha }}
+                  path: release_output/
+                  if-no-files-found: error
+                  retention-days: 30
