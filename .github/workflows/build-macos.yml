@@ -190,7 +190,7 @@ jobs:
 
             - name: Build RustDesk
               run: |
-                  python3 build.py --flutter --hwcodec --screencapturekit
+                  python3 build.py --flutter
               env:
                   VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
                   PKG_CONFIG_PATH: ${{ env.PKG_CONFIG_PATH }}
