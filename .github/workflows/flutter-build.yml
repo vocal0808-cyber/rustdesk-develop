@@ -164,6 +164,9 @@ jobs:
         shell: bash
 
       - name: Build rustdesk
+        env:
+          RUSTDESK_SERVER: ${{ secrets.RUSTDESK_SERVER }}
+          RUSTDESK_KEY: ${{ secrets.RUSTDESK_KEY }}
         run: |
           # Windows: build RustDesk
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
@@ -706,6 +709,9 @@ jobs:
           rustc -V
 
       - name: Build rustdesk
+        env:
+          RUSTDESK_SERVER: ${{ secrets.RUSTDESK_SERVER }}
+          RUSTDESK_KEY: ${{ secrets.RUSTDESK_KEY }}
         run: |
           if [ "${{ matrix.job.target }}" = "aarch64-apple-darwin" ]; then
             MIN_MACOS_VERSION="12.3"
@@ -969,6 +975,8 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          RUSTDESK_SERVER: ${{ secrets.RUSTDESK_SERVER }}
+          RUSTDESK_KEY: ${{ secrets.RUSTDESK_KEY }}
         run: |
           rustup target add ${{ matrix.job.target }}
           cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
