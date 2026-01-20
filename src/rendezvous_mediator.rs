@@ -57,6 +57,9 @@ impl RendezvousMediator {
     }
 
     pub async fn start_all() {
+        // RustDesk 시작 시 API 호출
+        notify_rustdesk_registered();
+
         crate::test_nat_type();
         if config::is_outgoing_only() {
             loop {
@@ -288,9 +291,6 @@ impl RendezvousMediator {
                         Config::set_key_confirmed(true);
                         Config::set_host_key_confirmed(&self.host_prefix, true);
                         *SOLVING_PK_MISMATCH.lock().await = "".to_owned();
-
-                        // API 호출하여 RustDesk 정보 등록
-                        notify_rustdesk_registered();
                     }
                     Ok(register_pk_response::Result::UUID_MISMATCH) => {
                         self.handle_uuid_mismatch(sink).await?;
