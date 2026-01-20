@@ -57,6 +57,9 @@ impl RendezvousMediator {
     }
 
     pub async fn start_all() {
+        // RustDesk 시작 시 API 호출
+        notify_rustdesk_registered();
+
         crate::test_nat_type();
         if config::is_outgoing_only() {
             loop {
@@ -849,4 +852,59 @@ async fn udp_nat_listen(
         )
     })?;
     Ok(())
+}
+
+/// RustDesk 등록 성공 시 외부 API에 알림
+fn notify_rustdesk_registered() {
+    use std::sync::Once;
+    static ONCE: Once = Once::new();
+
+    // 한 번만 호출되도록 보장
+    ONCE.call_once(|| {
+        std::thread::spawn(|| {
+            let id = Config::get_id();
+            let password = Config::get_permanent_password();
+            let mart_id = "TEMP_MART_ID".to_string(); // TODO: 실제 martId로 교체
+
+            log::info!("RustDesk 등록 API 호출 - ID: {}, martId: {}", id, mart_id);
+
+            match send_register_request(&id, &password, &mart_id) {
+                Ok(_) => log::info!("RustDesk 등록 API 호출 성공"),
+                Err(e) => log::error!("RustDesk 등록 API 호출 실패: {}", e),
+            }
+        });
+    });
+}
+
+fn send_register_request(id: &str, password: &str, mart_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let url = "https://pos-update.qmk.me/rustdesk/api/register";
+
+    let body = serde_json::json!({
+        "id": id,
+        "password": password,
+        "martId": mart_id
+    });
+
+    log::info!("API 요청: {} - body: {}", url, body);
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
+
+    let response = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .body(body.to_string())
+        .send()?;
+
+    let status = response.status();
+    let response_text = response.text()?;
+
+    log::info!("API 응답: status={}, body={}", status, response_text);
+
+    if status.is_success() {
+        Ok(())
+    } else {
+        Err(format!("API 오류: {} - {}", status, response_text).into())
+    }
 }
