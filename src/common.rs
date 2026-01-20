@@ -110,15 +110,15 @@ impl Drop for SimpleCallOnReturn {
 
 pub fn global_init() -> bool {
 
-    // ===== 자체 서버 설정 (환경변수에서 로드) =====
+    // ===== 자체 서버 설정 (컴파일 시점에 환경변수에서 로드) =====
     use crate::ui_interface::set_option;
-    if let Ok(server) = std::env::var("RUSTDESK_SERVER") {
-        set_option("custom-rendezvous-server".into(), server);
+    if let Some(server) = option_env!("RUSTDESK_SERVER") {
+        set_option("custom-rendezvous-server".into(), server.into());
     }
-    if let Ok(key) = std::env::var("RUSTDESK_KEY") {
-        set_option("key".into(), key);
+    if let Some(key) = option_env!("RUSTDESK_KEY") {
+        set_option("key".into(), key.into());
     }
-    // =============================================
+    // ===========================================================
 
     #[cfg(target_os = "linux")]
     {
