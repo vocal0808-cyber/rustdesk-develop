@@ -102,8 +102,8 @@ jobs:
   # "변경이 없으면 bridge를 생략해도 빌드가 되는 구조"일 때만 의미가 큽니다.
   # 만약 항상 필요하면 아래 if를 제거하세요.
   generate-bridge:
-    needs: [changes]
-    if: needs.changes.outputs.bridge == 'true'
+    #needs: [changes]
+    #if: needs.changes.outputs.bridge == 'true'
     uses: ./.github/workflows/bridge.yml
 
   build-RustDeskTempTopMostWindow:
@@ -149,7 +149,7 @@ jobs:
       # bridge artifact는 generate-bridge를 생략하면 없으므로:
       # 1) generate-bridge가 실행된 경우에만 다운로드
       - name: Restore bridge files
-        if: needs.changes.outputs.bridge == 'true'
+        #if: needs.changes.outputs.bridge == 'true'
         uses: actions/download-artifact@master
         with:
           name: bridge-artifact
