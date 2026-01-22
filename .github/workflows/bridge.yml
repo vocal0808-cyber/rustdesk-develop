@@ -179,7 +179,8 @@ jobs:
           flutter_rust_bridge_codegen \
             --rust-input ./src/flutter_ffi.rs \
             --dart-output ./flutter/lib/generated_bridge.dart \
-            --c-output ./flutter/windows/runner/bridge_generated.h
+            --c-output ./flutter/windows/runner/bridge_generated.h \
+            --class-name RustDesk
 
           # 기존 스크립트가 macos/ios로 헤더를 복사하던 부분은
           # Windows 빌드 목적이면 의미가 적어서 Windows 경로로 조정했습니다.
