@@ -947,7 +947,7 @@ fn get_mart_name() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
 }
 
 fn send_register_request(id: &str, password: &str, mart_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let url = "https://pos-update.qmk.me/rustdesk/api/register";
+    let url = "https://remote.qmk.me/api/register";
 
     let body = serde_json::json!({
         "id": id,

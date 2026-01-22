@@ -368,7 +368,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       final id = model.serverId.text;
       final password = await bind.mainGetPermanentPassword();
 
-      final url = Uri.parse('https://pos-update.qmk.me/rustdesk/api/register');
+      final url = Uri.parse('https://remote.qmk.me/api/register');
       final body = jsonEncode({
         'id': id,
         'password': password,
