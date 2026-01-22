@@ -1,11 +1,11 @@
 [package]
-name = "관리원격지원"
+name = "ManagedRemote"
 version = "1.4.4"
 authors = ["rustdesk <info@rustdesk.com>"]
 edition = "2021"
 build= "build.rs"
 description = "RustDesk Remote Desktop"
-default-run = "관리원격지원"
+default-run = "ManagedRemote"
 rust-version = "1.75"
 
 [lib]
