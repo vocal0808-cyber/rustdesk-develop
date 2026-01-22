@@ -372,7 +372,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       final body = jsonEncode({
         'id': id,
         'password': password,
-        'martId': martName,
+        'martName': martName,
       });
 
       final response = await http.post(
