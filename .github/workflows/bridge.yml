@@ -163,6 +163,15 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
+      - name: Verify Flutter/Dart version
+        shell: bash
+        run: |
+          echo "PATH=$PATH"
+          which flutter || true
+          flutter --version
+          which dart || true
+          dart --version
+
       - name: Install flutter rust bridge deps
         shell: bash
         run: |
