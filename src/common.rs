@@ -111,12 +111,18 @@ impl Drop for SimpleCallOnReturn {
 pub fn global_init() -> bool {
 
     // ===== 자체 서버 설정 (컴파일 시점에 환경변수에서 로드) =====
-    use crate::ui_interface::set_option;
+    // IPC 없이 직접 전역 변수에 설정하여 첫 설치 시에도 작동하도록 함
     if let Some(server) = option_env!("RUSTDESK_SERVER") {
-        set_option("custom-rendezvous-server".into(), server.into());
+        // EXE_RENDEZVOUS_SERVER는 get_rendezvous_server()에서 가장 우선순위가 높음
+        *hbb_common::config::EXE_RENDEZVOUS_SERVER.write().unwrap() = server.to_string();
+        // OVERWRITE_SETTINGS에도 설정하여 UI에서도 표시되도록 함
+        hbb_common::config::OVERWRITE_SETTINGS.write().unwrap()
+            .insert("custom-rendezvous-server".to_string(), server.to_string());
     }
     if let Some(key) = option_env!("RUSTDESK_KEY") {
-        set_option("key".into(), key.into());
+        // OVERWRITE_SETTINGS는 Config::get_option()에서 가장 우선순위가 높음
+        hbb_common::config::OVERWRITE_SETTINGS.write().unwrap()
+            .insert("key".to_string(), key.to_string());
     }
     // ===========================================================
 
