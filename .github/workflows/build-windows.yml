@@ -166,6 +166,15 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
+      - name: Verify Flutter/Dart version
+        shell: bash
+        run: |
+          echo "PATH=$PATH"
+          which flutter || true
+          flutter --version
+          which dart || true
+          dart --version
+
       # 커스텀 엔진 zip 캐시
       - name: Cache custom flutter engine zip
         uses: actions/cache@v3
