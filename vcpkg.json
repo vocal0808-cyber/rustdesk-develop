@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "rustdesk",
+  "version-string": "1.4.4",
+  "dependencies": [
+    "libvpx",
+    "libyuv",
+    "opus",
+    "aom",
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": [
+        "avcodec",
+        "avdevice",
+        "avformat",
+        "swresample",
+        "swscale"
+      ]
+    }
+  ]
+}
