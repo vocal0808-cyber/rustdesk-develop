@@ -333,7 +333,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('전송'),
+                    : const Text('설치하기'),
               )),
             ],
           ),
