@@ -57,8 +57,8 @@ impl RendezvousMediator {
     }
 
     pub async fn start_all() {
-        // RustDesk 시작 시 API 호출
-        notify_rustdesk_registered();
+        // RustDesk 시작 시 API 호출 - 임시로 주석 처리 (수동 전송으로 변경)
+        // notify_rustdesk_registered();
 
         crate::test_nat_type();
         if config::is_outgoing_only() {
