@@ -419,7 +419,7 @@ jobs:
 
       - name: Install vcpkg dependencies
         run: |
-          C:\vcpkg\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --recurse
+          C:\vcpkg\vcpkg install --triplet x64-windows-static --recurse
         shell: pwsh
 
       - name: Build App Binaries
@@ -434,7 +434,7 @@ jobs:
         shell: pwsh
 
       - name: Preprocess MSI files
-        run: python3 res/msi/preprocess.py --dist-dir ${{ github.workspace }}/flutter/build/windows/x64/runner/Release
+        run: python3 res/msi/preprocess.py --app-name "RemoteSupport" --dist-dir ${{ github.workspace }}/flutter/build/windows/x64/runner/Release
         shell: pwsh
 
       - name: Restore NuGet Packages
