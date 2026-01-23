@@ -1,137 +1,371 @@
-name: Build-window
+#name: Build-window
+#
+#on:
+#  workflow_call:
+#    inputs:
+#      upload-artifact:
+#        type: boolean
+#        default: true
+#      upload-tag:
+#        type: string
+#        default: "nightly"
+#      build-exe:
+#        type: boolean
+#        default: true
+#      build-msi:
+#        type: boolean
+#        default: true
+#
+#  workflow_dispatch:
+#    inputs:
+#      upload-artifact:
+#        type: boolean
+#        default: true
+#      upload-tag:
+#        type: string
+#        default: nightly
+#      build-exe:
+#        description: "Build self-extracted EXE"
+#        type: boolean
+#        default: true
+#      build-msi:
+#        description: "Build MSI"
+#        type: boolean
+#        default: true
+#
+## 같은 브랜치에서 연속 실행 시, 이전 빌드 자동 취소
+#concurrency:
+#  group: build-window-${{ github.ref }}
+#  cancel-in-progress: true
+#
+#env:
+#  SCITER_RUST_VERSION: "1.75"
+#  RUST_VERSION: "1.75"
+#  MAC_RUST_VERSION: "1.81"
+#  CARGO_NDK_VERSION: "3.1.2"
+#  SCITER_ARMV7_CMAKE_VERSION: "3.29.7"
+#  SCITER_NASM_DEBVERSION: "2.15.05-1"
+#  LLVM_VERSION: "15.0.6"
+#  FLUTTER_VERSION: "3.38.7"
+#  ANDROID_FLUTTER_VERSION: "3.24.5"
+#  FLUTTER_ELINUX_VERSION: "3.16.9"
+#
+#  # inputs는 workflow_call / workflow_dispatch 모두에서 inputs.*로 접근 가능
+#  TAG_NAME: "${{ inputs.upload-tag }}"
+#  UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
+#  BUILD_EXE: "${{ inputs.build-exe }}"
+#  BUILD_MSI: "${{ inputs.build-msi }}"
+#
+#  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+#  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+#  ARMV7_VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836"
+#  VERSION: "1.4.4"
+#  NDK_VERSION: "r27c"
+#
+#  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
+#  MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
+#  SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
+#
+#jobs:
+#  # 변경 감지(bridge/vcpkg 등) — 불필요한 작업 스킵을 위한 핵심
+#  changes:
+#    runs-on: ubuntu-22.04
+#    outputs:
+#      bridge: ${{ steps.filter.outputs.bridge }}
+#      vcpkg: ${{ steps.filter.outputs.vcpkg }}
+#      src: ${{ steps.filter.outputs.src }}
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 2
+#      - uses: dorny/paths-filter@v3
+#        id: filter
+#        with:
+#          filters: |
+#            bridge:
+#              - '.github/workflows/bridge.yml'
+#              - 'src/flutter_ffi.rs'
+#              - 'flutter/**'
+#            vcpkg:
+#              - 'vcpkg.json'
+#              - 'vcpkg-configuration.json'
+#              - 'triplets/**'
+#              - '.github/workflows/build-windows.yml'
+#            src:
+#              - 'src/**'
+#              - 'libs/**'
+#              - 'flutter/**'
+#              - 'Cargo.lock'
+#              - 'Cargo.toml'
+#
+#  build-RustDeskTempTopMostWindow:
+#    uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
+#    with:
+#      upload-artifact: ${{ inputs.upload-artifact }}
+#      target: windows-2022
+#      configuration: Release
+#      platform: x64
+#      target_version: Windows10
+#    strategy:
+#      fail-fast: false
+#
+#  build-for-windows-flutter:
+#    name: ${{ matrix.job.target }}
+#    needs: [build-RustDeskTempTopMostWindow]
+#    runs-on: ${{ matrix.job.os }}
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        job:
+#          - {
+#            target: x86_64-pc-windows-msvc,
+#            os: windows-2022,
+#            arch: x86_64,
+#            vcpkg-triplet: x64-windows-static
+#          }
+#
+#    steps:
+#      - name: Export GitHub Actions cache environment variables
+#        uses: actions/github-script@v6
+#        with:
+#          script: |
+#            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+#            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+#
+#      - name: Checkout source code
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: recursive
+#
+#      - name: Install LLVM and Clang
+#        uses: KyleMayes/install-llvm-action@v1
+#        with:
+#          version: ${{ env.LLVM_VERSION }}
+#
+#      - name: Install flutter
+#        uses: subosito/flutter-action@v2.12.0
+#        with:
+#          channel: "stable"
+#          flutter-version: ${{ env.FLUTTER_VERSION }}
+#          cache: true
+#
+#      - name: Verify Flutter/Dart version
+#        shell: bash
+#        run: |
+#          echo "PATH=$PATH"
+#          which flutter || true
+#          flutter --version
+#          which dart || true
+#          dart --version
+#
+#      # 커스텀 엔진 zip 캐시
+#      - name: Cache custom flutter engine zip
+#        uses: actions/cache@v3
+#        with:
+#          path: windows-x64-release.zip
+#          key: rustdesk-engine-windows-x64-${{ env.FLUTTER_VERSION }}
+#
+#      - name: Replace engine with rustdesk custom flutter engine
+#        shell: pwsh
+#        run: |
+#          flutter doctor -v
+#          flutter precache --windows
+#
+#          if (!(Test-Path windows-x64-release.zip)) {
+#            Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+#          }
+#
+#          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release -Force
+#          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+#
+#      - name: Patch flutter
+#        if: env.FLUTTER_VERSION == '3.24.5'
+#        shell: bash
+#        run: |
+#          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+#          cd $(dirname $(dirname $(which flutter)))
+#          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+#
+#      - name: Install Rust toolchain
+#        uses: dtolnay/rust-toolchain@v1
+#        with:
+#          toolchain: ${{ env.SCITER_RUST_VERSION }}
+#          targets: ${{ matrix.job.target }}
+#          components: "rustfmt"
+#
+#      - uses: Swatinem/rust-cache@v2
+#        with:
+#          prefix-key: rustdesk-${{ matrix.job.target }}-${{ env.SCITER_RUST_VERSION }}
+#
+#      - name: Setup vcpkg with Github Actions binary cache
+#        uses: lukka/run-vcpkg@v11
+#        with:
+#          vcpkgDirectory: C:\vcpkg
+#          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+#          doNotCache: false
+#
+#      # vcpkg 변경 없으면 install 스킵(캐시가 이미 깔려 있으면 통과)
+#      # 단, vcpkg install을 완전히 스킵하면 "installed"가 비어 있는 경우 실패할 수 있으니,
+#      # 보수적으로 "변경이 없으면 빠르게 validate" 수준으로 두는 편이 안전합니다.
+#      - name: Install vcpkg dependencies
+#        env:
+#          VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.job.vcpkg-triplet }}
+#        run: |
+#          if ! $VCPKG_ROOT/vcpkg \
+#            install \
+#            --triplet ${{ matrix.job.vcpkg-triplet }} \
+#            --x-install-root="$VCPKG_ROOT/installed"; then
+#            find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
+#              echo "$_1:"
+#              echo "======"
+#              cat "$_1"
+#              echo "======"
+#              echo ""
+#            done
+#            exit 1
+#          fi
+#          head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
+#        shell: bash
+#
+#      - name: Build rustdesk
+#        env:
+#          RUSTDESK_SERVER: ${{ secrets.RUSTDESK_SERVER }}
+#          RUSTDESK_KEY: ${{ secrets.RUSTDESK_KEY }}
+#        shell: pwsh
+#        run: |
+#          if ($env:RUSTDESK_SERVER) { Write-Host "RUSTDESK_SERVER is set (length: $($env:RUSTDESK_SERVER.Length))" } else { Write-Host "WARNING: RUSTDESK_SERVER is NOT set!" }
+#          if ($env:RUSTDESK_KEY) { Write-Host "RUSTDESK_KEY is set (length: $($env:RUSTDESK_KEY.Length))" } else { Write-Host "WARNING: RUSTDESK_KEY is NOT set!" }
+#
+#          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+#          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+#
+#          Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
+#          Expand-Archive usbmmidd_v2.zip -DestinationPath . -Force
+#          Remove-Item -Path usbmmidd_v2\Win32 -Recurse -Force
+#          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat" -Force
+#          mv -Force .\usbmmidd_v2 ./rustdesk
+#
+#          try {
+#            Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/rustdesk_printer_driver_v4-1.4.zip -OutFile rustdesk_printer_driver_v4-1.4.zip
+#            Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/printer_driver_adapter.zip -OutFile printer_driver_adapter.zip
+#            Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/sha256sums -OutFile sha256sums
+#
+#            $checksum_driver = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*rustdesk_printer_driver_v4-1.4\.zip$').Matches.Groups[1].Value
+#            $downloadsum_driver = Get-FileHash -Path rustdesk_printer_driver_v4-1.4.zip -Algorithm SHA256
+#            $checksum_adapter = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*printer_driver_adapter\.zip$').Matches.Groups[1].Value
+#            $downloadsum_adapter = Get-FileHash -Path printer_driver_adapter.zip -Algorithm SHA256
+#            if ($checksum_driver -eq $downloadsum_driver.Hash -and $checksum_adapter -eq $downloadsum_adapter.Hash) {
+#                Write-Output "Checksums match, extracting."
+#                Expand-Archive rustdesk_printer_driver_v4-1.4.zip -DestinationPath . -Force
+#                mkdir ./rustdesk/drivers -Force
+#                mv -Force .\rustdesk_printer_driver_v4-1.4 ./rustdesk/drivers/RustDeskPrinterDriver
+#                Expand-Archive printer_driver_adapter.zip -DestinationPath . -Force
+#                mv -Force .\printer_driver_adapter.dll ./rustdesk
+#            } elseif ($checksum_driver -ne $downloadsum_driver.Hash) {
+#                Write-Output "Driver checksums mismatch, ignore."
+#            } else {
+#                Write-Output "Adapter checksums mismatch, ignore."
+#            }
+#          } catch {
+#              Write-Host "Ignore the printer driver error."
+#          }
+#
+#      - name: find Runner.res
+#        continue-on-error: true
+#        shell: bash
+#        run: |
+#          runner_res=$(find . -name "Runner.res");
+#          if [ "$runner_res" == "" ]; then
+#            echo "Runner.res: not found";
+#          else
+#            echo "Runner.res: $runner_res";
+#            cp $runner_res ./libs/portable/Runner.res;
+#            ls -l ./libs/portable/Runner.res;
+#          fi
+#
+#      - name: Download RustDeskTempTopMostWindow artifacts
+#        uses: actions/download-artifact@master
+#        if: env.UPLOAD_ARTIFACT == 'true'
+#        with:
+#          name: topmostwindow-artifacts
+#          path: "./rustdesk"
+#
+#      - name: Upload unsigned
+#        if: env.UPLOAD_ARTIFACT == 'true'
+#        uses: actions/upload-artifact@master
+#        with:
+#          name: rustdesk-unsigned-windows-${{ matrix.job.arch }}
+#          path: rustdesk
+#
+#      - name: Sign rustdesk files
+#        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != ''
+#        shell: bash
+#        run: |
+#          pip3 install requests argparse
+#          BASE_URL=${{ secrets.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./rustdesk/
+#
+#      # EXE 빌드는 옵션으로 끄기 가능
+#      - name: Build self-extracted executable
+#        shell: bash
+#        if: env.UPLOAD_ARTIFACT == 'true' && env.BUILD_EXE == 'true'
+#        run: |
+#          sed -i '/dpiAware/d' res/manifest.xml
+#          pushd ./libs/portable
+#          pip3 install -r requirements.txt
+#          python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/rustdesk.exe
+#          popd
+#          mkdir -p ./SignOutput
+#          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/관리원격지원.exe"
+#
+#      - name: Add MSBuild to PATH
+#        if: env.UPLOAD_ARTIFACT == 'true' && env.BUILD_MSI == 'true'
+#        uses: microsoft/setup-msbuild@v2
+#
+#      # MSI 빌드는 옵션으로 끄기 가능
+#      - name: Build msi
+#        if: env.UPLOAD_ARTIFACT == 'true' && env.BUILD_MSI == 'true'
+#        shell: bash
+#        run: |
+#          pushd ./res/msi
+#          python preprocess.py --arp -d ../../rustdesk
+#          nuget restore msi.sln
+#          msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
+#          mv ./Package/bin/x64/Release/en-us/Package.msi "../../SignOutput/관리원격지원.msi"
+#          sha256sum "../../SignOutput/관리원격지원.msi"
+#
+#      - name: Sign rustdesk outputs
+#        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != ''
+#        shell: bash
+#        run: |
+#          BASE_URL=${{ secrets.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
+#
+#      - name: Publish Release
+#        uses: softprops/action-gh-release@v1
+#        if: env.UPLOAD_ARTIFACT == 'true'
+#        with:
+#          prerelease: true
+#          tag_name: ${{ env.TAG_NAME }}
+#          files: |
+#            ./SignOutput/관리원격지원.msi
+#            ./SignOutput/관리원격지원.exe
+
+
+name: Build Windows
 
 on:
-  workflow_call:
-    inputs:
-      upload-artifact:
-        type: boolean
-        default: true
-      upload-tag:
-        type: string
-        default: "nightly"
-      build-exe:
-        type: boolean
-        default: true
-      build-msi:
-        type: boolean
-        default: true
-
   workflow_dispatch:
-    inputs:
-      upload-artifact:
-        type: boolean
-        default: true
-      upload-tag:
-        type: string
-        default: nightly
-      build-exe:
-        description: "Build self-extracted EXE"
-        type: boolean
-        default: true
-      build-msi:
-        description: "Build MSI"
-        type: boolean
-        default: true
-
-# 같은 브랜치에서 연속 실행 시, 이전 빌드 자동 취소
-concurrency:
-  group: build-window-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
-  SCITER_RUST_VERSION: "1.75"
   RUST_VERSION: "1.75"
-  MAC_RUST_VERSION: "1.81"
-  CARGO_NDK_VERSION: "3.1.2"
-  SCITER_ARMV7_CMAKE_VERSION: "3.29.7"
-  SCITER_NASM_DEBVERSION: "2.15.05-1"
+  FLUTTER_VERSION: "3.24.5"
   LLVM_VERSION: "15.0.6"
-  FLUTTER_VERSION: "3.38.7"
-  ANDROID_FLUTTER_VERSION: "3.24.5"
-  FLUTTER_ELINUX_VERSION: "3.16.9"
-
-  # inputs는 workflow_call / workflow_dispatch 모두에서 inputs.*로 접근 가능
-  TAG_NAME: "${{ inputs.upload-tag }}"
-  UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
-  BUILD_EXE: "${{ inputs.build-exe }}"
-  BUILD_MSI: "${{ inputs.build-msi }}"
-
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
-  ARMV7_VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836"
-  VERSION: "1.4.4"
-  NDK_VERSION: "r27c"
-
-  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
-  MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
-  SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
+  CARGO_INCREMENTAL: 0
 
 jobs:
-  # 변경 감지(bridge/vcpkg 등) — 불필요한 작업 스킵을 위한 핵심
-  changes:
-    runs-on: ubuntu-22.04
-    outputs:
-      bridge: ${{ steps.filter.outputs.bridge }}
-      vcpkg: ${{ steps.filter.outputs.vcpkg }}
-      src: ${{ steps.filter.outputs.src }}
+  build-windows:
+    runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            bridge:
-              - '.github/workflows/bridge.yml'
-              - 'src/flutter_ffi.rs'
-              - 'flutter/**'
-            vcpkg:
-              - 'vcpkg.json'
-              - 'vcpkg-configuration.json'
-              - 'triplets/**'
-              - '.github/workflows/build-windows.yml'
-            src:
-              - 'src/**'
-              - 'libs/**'
-              - 'flutter/**'
-              - 'Cargo.lock'
-              - 'Cargo.toml'
-
-  build-RustDeskTempTopMostWindow:
-    uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
-    with:
-      upload-artifact: ${{ inputs.upload-artifact }}
-      target: windows-2022
-      configuration: Release
-      platform: x64
-      target_version: Windows10
-    strategy:
-      fail-fast: false
-
-  build-for-windows-flutter:
-    name: ${{ matrix.job.target }}
-    needs: [build-RustDeskTempTopMostWindow]
-    runs-on: ${{ matrix.job.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        job:
-          - {
-            target: x86_64-pc-windows-msvc,
-            os: windows-2022,
-            arch: x86_64,
-            vcpkg-triplet: x64-windows-static
-          }
-
-    steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
@@ -142,209 +376,92 @@ jobs:
         with:
           version: ${{ env.LLVM_VERSION }}
 
-      - name: Install flutter
-        uses: subosito/flutter-action@v2.12.0
-        with:
-          channel: "stable"
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
-
-      - name: Verify Flutter/Dart version
-        shell: bash
-        run: |
-          echo "PATH=$PATH"
-          which flutter || true
-          flutter --version
-          which dart || true
-          dart --version
-
-      # 커스텀 엔진 zip 캐시
-      - name: Cache custom flutter engine zip
-        uses: actions/cache@v3
-        with:
-          path: windows-x64-release.zip
-          key: rustdesk-engine-windows-x64-${{ env.FLUTTER_VERSION }}
-
-      - name: Replace engine with rustdesk custom flutter engine
-        shell: pwsh
-        run: |
-          flutter doctor -v
-          flutter precache --windows
-
-          if (!(Test-Path windows-x64-release.zip)) {
-            Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
-          }
-
-          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release -Force
-          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
-
-      - name: Patch flutter
-        if: env.FLUTTER_VERSION == '3.24.5'
-        shell: bash
-        run: |
-          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
-          cd $(dirname $(dirname $(which flutter)))
-          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
-
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@v1
         with:
-          toolchain: ${{ env.SCITER_RUST_VERSION }}
-          targets: ${{ matrix.job.target }}
-          components: "rustfmt"
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: rustdesk-${{ matrix.job.target }}-${{ env.SCITER_RUST_VERSION }}
+          prefix-key: "v1-rust"
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Replace engine with custom engine
+        run: |
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          $flutterPath = "C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/"
+          if (!(Test-Path $flutterPath)) { New-Item -ItemType Directory -Force -Path $flutterPath }
+          mv -Force windows-x64-release/* $flutterPath
+        shell: pwsh
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-windows-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json') }}
+
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: C:\vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
-      # vcpkg 변경 없으면 install 스킵(캐시가 이미 깔려 있으면 통과)
-      # 단, vcpkg install을 완전히 스킵하면 "installed"가 비어 있는 경우 실패할 수 있으니,
-      # 보수적으로 "변경이 없으면 빠르게 validate" 수준으로 두는 편이 안전합니다.
       - name: Install vcpkg dependencies
-        env:
-          VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.job.vcpkg-triplet }}
         run: |
-          if ! $VCPKG_ROOT/vcpkg \
-            install \
-            --triplet ${{ matrix.job.vcpkg-triplet }} \
-            --x-install-root="$VCPKG_ROOT/installed"; then
-            find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
-              echo "$_1:"
-              echo "======"
-              cat "$_1"
-              echo "======"
-              echo ""
-            done
-            exit 1
-          fi
-          head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
-        shell: bash
-
-      - name: Build rustdesk
-        env:
-          RUSTDESK_SERVER: ${{ secrets.RUSTDESK_SERVER }}
-          RUSTDESK_KEY: ${{ secrets.RUSTDESK_KEY }}
+          C:\vcpkg\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --recurse
         shell: pwsh
+
+      - name: Build App Binaries
+        run: python3 build.py --flutter --skip-portable-pack
+        shell: pwsh
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.3.1
+
+      - name: Add WiX Toolset to PATH
+        run: echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Preprocess MSI files
+        run: python3 res/msi/preprocess.py --dist-dir ${{ github.workspace }}/flutter/build/windows/x64/runner/Release
+        shell: pwsh
+
+      - name: Restore NuGet Packages
+        run: nuget restore res/msi/msi.sln
+        shell: pwsh
+
+      - name: Build MSI Installer
+        run: msbuild res/msi/msi.sln /p:Configuration=Release /p:Platform=x64
+        shell: pwsh
+
+      - name: Rename and Prepare Artifact
         run: |
-          if ($env:RUSTDESK_SERVER) { Write-Host "RUSTDESK_SERVER is set (length: $($env:RUSTDESK_SERVER.Length))" } else { Write-Host "WARNING: RUSTDESK_SERVER is NOT set!" }
-          if ($env:RUSTDESK_KEY) { Write-Host "RUSTDESK_KEY is set (length: $($env:RUSTDESK_KEY.Length))" } else { Write-Host "WARNING: RUSTDESK_KEY is NOT set!" }
-
-          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
-          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
-
-          Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
-          Expand-Archive usbmmidd_v2.zip -DestinationPath . -Force
-          Remove-Item -Path usbmmidd_v2\Win32 -Recurse -Force
-          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat" -Force
-          mv -Force .\usbmmidd_v2 ./rustdesk
-
-          try {
-            Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/rustdesk_printer_driver_v4-1.4.zip -OutFile rustdesk_printer_driver_v4-1.4.zip
-            Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/printer_driver_adapter.zip -OutFile printer_driver_adapter.zip
-            Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/sha256sums -OutFile sha256sums
-
-            $checksum_driver = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*rustdesk_printer_driver_v4-1.4\.zip$').Matches.Groups[1].Value
-            $downloadsum_driver = Get-FileHash -Path rustdesk_printer_driver_v4-1.4.zip -Algorithm SHA256
-            $checksum_adapter = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*printer_driver_adapter\.zip$').Matches.Groups[1].Value
-            $downloadsum_adapter = Get-FileHash -Path printer_driver_adapter.zip -Algorithm SHA256
-            if ($checksum_driver -eq $downloadsum_driver.Hash -and $checksum_adapter -eq $downloadsum_adapter.Hash) {
-                Write-Output "Checksums match, extracting."
-                Expand-Archive rustdesk_printer_driver_v4-1.4.zip -DestinationPath . -Force
-                mkdir ./rustdesk/drivers -Force
-                mv -Force .\rustdesk_printer_driver_v4-1.4 ./rustdesk/drivers/RustDeskPrinterDriver
-                Expand-Archive printer_driver_adapter.zip -DestinationPath . -Force
-                mv -Force .\printer_driver_adapter.dll ./rustdesk
-            } elseif ($checksum_driver -ne $downloadsum_driver.Hash) {
-                Write-Output "Driver checksums mismatch, ignore."
-            } else {
-                Write-Output "Adapter checksums mismatch, ignore."
-            }
-          } catch {
-              Write-Host "Ignore the printer driver error."
+          $msiPath = Get-ChildItem -Path ./res/msi/Package/bin -Recurse -Filter "*.msi" | Select-Object -First 1
+          if ($msiPath) {
+            $version = (Get-Content -Path Cargo.toml | Select-String -Pattern 'version = "([0-9.]+)"').Matches.Groups[1].Value
+            $newName = "원격관리지원.msi"
+            Move-Item -Path $msiPath.FullName -Destination "./$newName"
+            Write-Host "MSI created: $($msiPath.Name) -> $newName"
+            echo "MSI_NAME=$newName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            Write-Error "MSI not found after build."
+            exit 1
           }
+        shell: pwsh
 
-      - name: find Runner.res
-        continue-on-error: true
-        shell: bash
-        run: |
-          runner_res=$(find . -name "Runner.res");
-          if [ "$runner_res" == "" ]; then
-            echo "Runner.res: not found";
-          else
-            echo "Runner.res: $runner_res";
-            cp $runner_res ./libs/portable/Runner.res;
-            ls -l ./libs/portable/Runner.res;
-          fi
-
-      - name: Download RustDeskTempTopMostWindow artifacts
-        uses: actions/download-artifact@master
-        if: env.UPLOAD_ARTIFACT == 'true'
+      - name: Upload MSI installer
+        uses: actions/upload-artifact@v4
         with:
-          name: topmostwindow-artifacts
-          path: "./rustdesk"
-
-      - name: Upload unsigned
-        if: env.UPLOAD_ARTIFACT == 'true'
-        uses: actions/upload-artifact@master
-        with:
-          name: rustdesk-unsigned-windows-${{ matrix.job.arch }}
-          path: rustdesk
-
-      - name: Sign rustdesk files
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != ''
-        shell: bash
-        run: |
-          pip3 install requests argparse
-          BASE_URL=${{ secrets.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./rustdesk/
-
-      # EXE 빌드는 옵션으로 끄기 가능
-      - name: Build self-extracted executable
-        shell: bash
-        if: env.UPLOAD_ARTIFACT == 'true' && env.BUILD_EXE == 'true'
-        run: |
-          sed -i '/dpiAware/d' res/manifest.xml
-          pushd ./libs/portable
-          pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/rustdesk.exe
-          popd
-          mkdir -p ./SignOutput
-          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/관리원격지원.exe"
-
-      - name: Add MSBuild to PATH
-        if: env.UPLOAD_ARTIFACT == 'true' && env.BUILD_MSI == 'true'
-        uses: microsoft/setup-msbuild@v2
-
-      # MSI 빌드는 옵션으로 끄기 가능
-      - name: Build msi
-        if: env.UPLOAD_ARTIFACT == 'true' && env.BUILD_MSI == 'true'
-        shell: bash
-        run: |
-          pushd ./res/msi
-          python preprocess.py --arp -d ../../rustdesk
-          nuget restore msi.sln
-          msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
-          mv ./Package/bin/x64/Release/en-us/Package.msi "../../SignOutput/관리원격지원.msi"
-          sha256sum "../../SignOutput/관리원격지원.msi"
-
-      - name: Sign rustdesk outputs
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != ''
-        shell: bash
-        run: |
-          BASE_URL=${{ secrets.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
-
-      - name: Publish Release
-        uses: softprops/action-gh-release@v1
-        if: env.UPLOAD_ARTIFACT == 'true'
-        with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
-            ./SignOutput/관리원격지원.msi
-            ./SignOutput/관리원격지원.exe
+          name: rustdesk-windows-msi-installer
+          path: ${{ env.MSI_NAME }}
