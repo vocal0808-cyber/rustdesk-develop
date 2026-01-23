@@ -360,6 +360,7 @@ env:
   FLUTTER_VERSION: "3.24.5"
   LLVM_VERSION: "15.0.6"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VCPKG_ROOT: C:\vcpkg
   CARGO_INCREMENTAL: 0
 
 jobs:
@@ -419,7 +420,8 @@ jobs:
 
       - name: Install vcpkg dependencies
         run: |
-          C:\vcpkg\vcpkg install --triplet x64-windows-static --recurse
+          cd ${{ github.workspace }}
+          C:\vcpkg\vcpkg install --triplet x64-windows-static --x-install-root=C:\vcpkg\installed
         shell: pwsh
 
       - name: Build App Binaries
